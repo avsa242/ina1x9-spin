@@ -1,31 +1,47 @@
 {
-    --------------------------------------------
-    Filename: INA1X9-Demo.spin
-    Author: Jesse Burt
-    Description: Demo of the INA1x9 driver
-        * INA169 connected to MCP3202 ADC
-    Copyright (c) 2024
-    Started Jan 14, 2024
-    Updated Jan 14, 2024
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       INA1X9-Demo.spin
+    Description:    Demo of the INA1x9 driver
+        * INA169 connected to MCP320x ADC
+    Author:         Jesse Burt
+    Started:        Jan 14, 2024
+    Updated:        Aug 24, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
+
+' Set to the driver for an ADC (must provide voltage() that returns micro-volts measurements)
+#define ADC_DRIVER  "signal.adc.mcp320x"
+#pragma exportdef ADC_DRIVER
+
 CON
 
-    _clkmode    = cfg#_clkmode
-    _xinfreq    = cfg#_xinfreq
+    _clkmode    = xtal1+pll16x
+    _xinfreq    = 5_000_000
 
 
 OBJ
 
-    cfg:    "boardcfg.flip"
     ser:    "com.serial.terminal.ansi" | SER_BAUD=115_200
-    adc:    "signal.adc.mcp320x" | CS=0, SCK=1, MOSI=2, MISO=3
+    adc:    ADC_DRIVER |    { SPI } CS=0, SCK=1, MOSI=2, MISO=3, SPI_FREQ=1_000_000, ...
+                            { I2C } SCL=28, SDA=29, I2C_FREQ=400_000, I2C_ADDR=0
     sensor: "sensor.power.ina1x9"
     time:   "time"
 
 
 PUB main()
+
+    repeat
+        ser.pos_xy(0, 3)
+
+        ' extract integer and fractional parts of the measurement and display
+        ser.printf2(@"Current: %d.%06.6dA", (sensor.current() / sensor.I_SCALE), ...
+                                            ||(sensor.current() // sensor.I_SCALE))
+
+        time.msleep(250)
+
+
+PUB setup()
 
     ser.start()
     time.msleep(30)
@@ -51,12 +67,13 @@ PUB main()
     sensor.preset_adafruit_1164()
     'sensor.preset_sparkfun_sen_12040()
 
+    { alternatively, set these manually }
+    'sensor.shunt_resistance(100)               ' shunt resistance in milliOhms
+    'sensor.load_resistance(10_000_000)         ' load resistance in milliOhms
+
     sensor.samples_avg(1)                       ' 1..posx; # of samples averaged to produce result
     sensor.set_current_bias(0)                  ' negx..posx; optional offset added to measurements
 
-    demo()
-
-#include "powerdemo.common.spinh"               ' pull in code common to all power sensor demos
 
 DAT
 {

@@ -1,34 +1,49 @@
 {
-    --------------------------------------------
-    Filename: INA1X9-Demo.spin2
-    Author: Jesse Burt
-    Description: Demo of the INA1x9 driver (P2 version)
-        * INA169 connected to MCP3202 ADC
-    Copyright (c) 2024
-    Started Jan 14, 2024
-    Updated Jan 14, 2024
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       INA1X9-Demo.spin2
+    Description:    Demo of the INA1x9 driver
+        * INA169 connected to MCP320x ADC
+    Author:         Jesse Burt
+    Started:        Jan 14, 2024
+    Updated:        Aug 24, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
+
+' Set to the driver for an ADC (must provide voltage() that returns micro-volts measurements)
+#define ADC_DRIVER  "signal.adc.mcp320x"
+#pragma exportdef ADC_DRIVER
+
 CON
 
-    _clkfreq    = cfg._clkfreq_def
-    _xtlfreq    = cfg._xtlfreq
+    _clkfreq    = 180_000_000
+    _xtlfreq    = 20_000_000
 
 
 OBJ
 
-    cfg:    "boardcfg.p2eval"
     ser:    "com.serial.terminal.ansi" | SER_BAUD=2_000_000
-    adc:    "signal.adc.mcp320x" | CS=16, SCK=17, MOSI=18, MISO=19
+    adc:    ADC_DRIVER |    { SPI } CS=0, SCK=1, MOSI=2, MISO=3, SPI_FREQ=1_000_000, ...
+                            { I2C } SCL=0, SDA=1, I2C_FREQ=400_000, I2C_ADDR=0
     sensor: "sensor.power.ina1x9"
-    time:   "time"
 
 
 PUB main()
 
+    repeat
+        ser.pos_xy(0, 3)
+
+        ' extract integer and fractional parts of the measurement and display
+        ser.printf(@"Current: %d.%06.6dA",  (sensor.current() / sensor.I_SCALE), ...
+                                            abs(sensor.current() // sensor.I_SCALE))
+
+        waitms(250)
+
+
+PUB setup()
+
     ser.start()
-    waitms(30)
+
     ser.clear()
     ser.strln(@"Serial terminal started")
 
@@ -41,7 +56,7 @@ PUB main()
 
     adc.defaults()
     adc.set_model(3202)                         ' 10bit: 3001, 2, 4, 8; 12bit: 3201, 2, 4, 8
-    adc.set_adc_channel(0)                      ' select channel (. available is model-dependent)
+    adc.set_adc_channel(0)                      ' select channel (# available is model-dependent)
     adc.set_ref_voltage(3_300_000)              ' set voltage ADC is supplied by (= ref. voltage)
 
     sensor.bind(@adc)                           ' attach the driver to the ADC object
@@ -51,12 +66,13 @@ PUB main()
     sensor.preset_adafruit_1164()
     'sensor.preset_sparkfun_sen_12040()
 
-    sensor.samples_avg(1)                       ' 1..posx; . of samples averaged to produce result
+    { alternatively, set these manually }
+    'sensor.shunt_resistance(100)               ' shunt resistance in milliOhms
+    'sensor.load_resistance(10_000_000)         ' load resistance in milliOhms
+
+    sensor.samples_avg(1)                       ' 1..posx; # of samples averaged to produce result
     sensor.set_current_bias(0)                  ' negx..posx; optional offset added to measurements
 
-    demo()
-
-#include "powerdemo.common.spin2h"              ' pull in code common to all power sensor demos
 
 DAT
 {

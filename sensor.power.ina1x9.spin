@@ -1,23 +1,26 @@
 {
-    --------------------------------------------
-    Filename: sensor.power.ina1x9.spin
-    Author: Jesse Burt
-    Description: Driver for the TI INA1x9 analog DC current sensor (139, 169)
-    Copyright (c) 2024
-    Started Jan 14, 2024
-    Updated Jan 14, 2024
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       sensor.power.ina1x9.spin
+    Description:    Driver for the TI INA1x9 analog DC current sensor (139, 169)
+    Author:         Jesse Burt
+    Started:        Jan 14, 2024
+    Updated:        Aug 24, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 
     Requirements:
         * an ADC driver with the following interfaces:
-            voltage() (ADC word scaled to microvolts)
+            voltage() that returns ADC word scaled to microvolts
 
     Usage:
         One of start(), bind(), attach() _must_ first be called from the parent object/application,
             with a pointer to the chosen ADC driver's OBJ symbol. That is how this driver is
             "attached" to the ADC.
         Example 'application.spin':
+
+            ```
+            #define ADC_DRIVER "signal.adc.mcp320x"
+            #pragma exportdef(ADC_DRIVER)
 
             OBJ
 
@@ -26,19 +29,18 @@
 
             PUB main()
 
+                adc.start()                     ' start the ADC driver (see individual driver docs)
+                ' ...
+                '   adc setup, if necessary (such as channel, range, etc)
+                ' ...
                 pwr.init(@adc)                  ' point to the adc object
+            ```
 
         The preprocessor symbol ADC_DRIVER must be set to the filename of your
-        chosen ADC driver (the driver will default to using the MCP320x driver,
-            if one isn't defined.)
+        chosen ADC driver (it will default to using the MCP320x driver, if one isn't defined.)
 
 
-        Example:
-
-            #define ADC_DRIVER "signal.adc.mcp320x"
-            #pragma exportdef(ADC_DRIVER)
-
-        or on the command-line:
+        Alternatively, it can be specified on the command-line when building:
 
             flexspin -DADC_DRIVER=\"signal.adc.mcp320x\" -I$(SPIN1_STD_LIB_PATH) INA1X9-Demo.spin
 
@@ -57,17 +59,19 @@ con
 
     MILLIOHM            = 1_000
 
+    I_SCALE             = 1_000000              ' scaling factor of current measurements
+
 
 var
 
-    long _instance                              ' pointer to ADC object
+    long _p_adcobj                              ' pointer to ADC object
     long _shunt_r, _load_r, _shunt_load_r       ' resistance values
     long _avg                                   ' number of samples to average
     long _bias_i
 
 #ifndef ADC_DRIVER
 { default to the MCP320x driver if one isn't specified }
-#define ADC_DRIVER "signal.adc.mcp320x"
+# define ADC_DRIVER "signal.adc.mcp320x"
 #endif
 
 obj
@@ -80,14 +84,14 @@ pub start = attach
 pub bind = attach
 pub attach(ptr): s
 ' Attach an ADC driver object instance
-    _instance := ptr
+    _p_adcobj := ptr
     _avg := 1
     return cogid+1
 
 
 pub stop()
 ' Stop the driver: reclaim variable space
-    longfill(@_instance, 0, 5)
+    longfill(@_p_adcobj, 0, 6)
 
 
 pub preset_adafruit_1164()
@@ -116,12 +120,12 @@ pub adc2amps(vo): i
 
 
 pub adc2volts(a): v
-' not supported - for API compatibility only
+' not supported - for sensor.power API compatibility only
     return 0
 
 
 pub adc2watts(a): p
-' not supported - for API compatibility only
+' not supported - for sensor.power API compatibility only
     return 0
 
 
@@ -130,7 +134,7 @@ pub current_data(): i
 '   Returns: voltage as measured by the ADC
     i := 0
     repeat _avg                                 ' average some samples
-        i += adc[_instance].voltage()
+        i += adc[_p_adcobj].voltage()
     i /= _avg
 
     return i
